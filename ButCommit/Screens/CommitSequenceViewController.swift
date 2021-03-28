@@ -1,0 +1,222 @@
+//
+//  CommitSequenceViewController.swift
+//  ButCommit
+//
+//  Created by 이현호 on 2021/03/27.
+//
+
+import UIKit
+import SwiftSoup
+
+class CommitSequenceViewController: UIViewController {
+    
+    @IBOutlet var containerView: UIView!
+    @IBOutlet weak var tableView: UITableView!
+    @IBOutlet weak var screenshotButton: UIButton!
+    
+    let commitStatusCellIdentifier = "commitStatusCell"
+    
+    private var myContributes: [ContributeData] = []
+    private var serialCommitCount: Int = 0
+    private var mystreaks: ContributeData = ContributeData(count: 0, weekend: "", date: "")
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        fetchContributionsByUserame(by: "KimMiha")
+
+        configureTableView()
+        
+    }
+    
+    
+    
+    private func configureTitle() {
+
+        if serialCommitCount == 0 {
+            title = "😢 아직 잔디를 심지 못했어요."
+        } else if serialCommitCount == 1 {
+            title = "🌱 오늘 처음으로 잔디를 심었어요."
+        } else if serialCommitCount < 30 {
+            title = "🌿 잔디에 싹이 튼 지 \(serialCommitCount)일이 되었어요."
+        } else if serialCommitCount < 100 {
+            title = "🌳 잔디가 무럭무럭 자란지 \(serialCommitCount)일이 되었어요."
+        }
+        // 🔥🌱🌿🌳
+    }
+    
+    // MARK: - Actions
+    @objc func imageWasSaved(_ image: UIImage, error: Error?, context: UnsafeMutableRawPointer) {
+        if let error = error {
+            print(error.localizedDescription)
+            return
+        }
+        
+        print("Image was saved in the photo gallery")
+        UIApplication.shared.open(URL(string:"photos-redirect://")!)
+    }
+    
+    func takeScreenshot(of view: UIView) {
+        UIGraphicsBeginImageContextWithOptions(
+            CGSize(width: view.bounds.width, height: view.bounds.height),
+            false,
+            2
+        )
+        
+        view.layer.render(in: UIGraphicsGetCurrentContext()!)
+        let screenshot = UIGraphicsGetImageFromCurrentImageContext()!
+        UIGraphicsEndImageContext()
+        
+        UIImageWriteToSavedPhotosAlbum(screenshot, self, #selector(imageWasSaved), nil)
+    }
+    
+    @IBAction func captureButtonClick(_ sender: Any) {
+        
+        UIView.animate(withDuration: 0.2, animations: {
+                 self.screenshotButton.backgroundColor = .blue
+             }) { _ in
+            self.screenshotButton.backgroundColor = .systemGreen
+             }
+
+             takeScreenshot(of: containerView)
+        
+    }
+    
+    
+    
+    private func configureTableView() {
+        tableView.delegate = self
+        tableView.dataSource = self
+    }
+    
+    func fetchContributionsByUserame(by username: String) {
+        guard let targetURL = URL(string: "https://github.com/users/\(username)/contributions") else { return }
+        
+        URLSession.shared.dataTask(with: targetURL) { [weak self] data, response, error in
+            guard let self = self else { return }
+
+            if error != nil {
+                //self.showError()
+                return
+            }
+
+            guard let httpResponse = response as? HTTPURLResponse, (200 ... 299).contains(httpResponse.statusCode) else {
+                //self.showError()
+                return
+            }
+
+            guard let mimeType = httpResponse.mimeType,
+                  mimeType == "text/html",
+                  let data = data,
+                  let html = String(data: data, encoding: .utf8)
+            else {
+                //self.showError()
+                return
+            }
+            self.mystreaks = self.parseHtmltoDataForCount(html: html)
+            self.myContributes = self.parseHtmltoData(html: html)
+            
+            DispatchQueue.main.async {
+//                if self.mystreaks[0].count == 0 {
+//                    self.title = "😢 아직 잔디를 심지 못했어요."
+//                } else {
+//
+//                }
+                self.configureTitle()
+                self.tableView.reloadData()
+            }
+//            if isFriend {
+//                self.friendContributes = contributeDataList
+//            } else{
+//                self.myContributes = contributeDataList
+//                self.mystreaks = self.parseHtmltoDataForCount(html: html)
+//            }
+//
+//            if group != nil {
+//                group?.leave()
+//            }
+            
+        }
+        .resume()
+    }
+    
+    private func parseHtmltoDataForCount(html: String) -> ContributeData {
+        do {
+            let doc: Document = try SwiftSoup.parse(html)
+            let rects: Elements = try doc.getElementsByTag(ParseKeys.rect)
+            let days: [Element] = rects.array().filter { $0.hasAttr(ParseKeys.date) }
+            let count = days.suffix(Consts.fetchStreak)
+            var contributeLastDate = count.map(mapFunction)
+            
+            contributeLastDate.sort{ $0.date > $1.date }
+            for index in 0 ..< contributeLastDate.count {
+                print(index, contributeLastDate[index].date, contributeLastDate[index].count, contributeLastDate[index].weekend)
+                if contributeLastDate[index].count == .zero, index != 0 {
+                    self.serialCommitCount = index
+                    return contributeLastDate[index]
+                }
+                if index == (contributeLastDate.count - 1) {
+                    return ContributeData(
+                        count: 1000,
+                        weekend: contributeLastDate[index].weekend,
+                        date: contributeLastDate[index].date
+                    )
+                }
+            }
+            return ContributeData(count: 0, weekend: "", date: "")
+        } catch {
+            return ContributeData(count: 0, weekend: "", date: "")
+        }
+    }
+    
+    private func parseHtmltoData(html: String) -> [ContributeData] {
+        do {
+            let doc: Document = try SwiftSoup.parse(html)
+            let rects: Elements = try doc.getElementsByTag(ParseKeys.rect)
+            let days: [Element] = rects.array().filter { $0.hasAttr(ParseKeys.date) }
+
+            let weekend = serialCommitCount == 0 ? days.suffix(Consts.fetchCount) : days.suffix(serialCommitCount)
+            
+            var contributeDataList = weekend.map(mapFunction)
+            contributeDataList.sort{ $0.date > $1.date }
+            return contributeDataList
+            
+        } catch {
+            return []
+        }
+    }
+    
+    private func mapFunction(ele : Element) -> ContributeData {
+        guard let attr = ele.getAttributes() else { return ContributeData(count: 0, weekend: "", date: "") }
+        let date: String = attr.get(key: ParseKeys.date)
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.locale = Locale.current
+        dateFormatter.timeZone = TimeZone.current
+
+        let dateForWeekend = dateFormatter.date(from: date)
+        
+        guard let weekend = dateForWeekend?.dayOfWeek() else { return ContributeData(count: 0, weekend: "", date: "")}
+        guard let count = Int(attr.get(key: ParseKeys.contributionCount)) else { return ContributeData(count: 0, weekend: "", date: "")}
+
+        return ContributeData(count: count, weekend: weekend, date: date)
+    }
+}
+
+extension CommitSequenceViewController: UITableViewDelegate, UITableViewDataSource {
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return serialCommitCount
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: commitStatusCellIdentifier, for: indexPath)
+        let date = self.myContributes[indexPath.row].date
+        let weekend = self.myContributes[indexPath.row].weekend
+        let count = self.myContributes[indexPath.row].count
+        let emoji = count.getEmoji()
+        cell.textLabel?.text = "\(date) (\(weekend)) - \(emoji) \(count)"
+        return cell
+    }
+    
+    
+}
