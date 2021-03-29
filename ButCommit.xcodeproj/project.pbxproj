@@ -23,6 +23,7 @@
 		A5FF853C260FF3EE00AFAEEA /* Commit.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5FF853B260FF3EE00AFAEEA /* Commit.swift */; };
 		A5FF8544261001A300AFAEEA /* Int+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5FF8543261001A300AFAEEA /* Int+Extension.swift */; };
 		A5FF854C26109AC700AFAEEA /* UIView+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5FF854B26109AC600AFAEEA /* UIView+Extension.swift */; };
+		A5FF85FC2612043E00AFAEEA /* GetIDViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5FF85FB2612043E00AFAEEA /* GetIDViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,6 +65,7 @@
 		A5FF853B260FF3EE00AFAEEA /* Commit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Commit.swift; sourceTree = "<group>"; };
 		A5FF8543261001A300AFAEEA /* Int+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Int+Extension.swift"; sourceTree = "<group>"; };
 		A5FF854B26109AC600AFAEEA /* UIView+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIView+Extension.swift"; sourceTree = "<group>"; };
+		A5FF85FB2612043E00AFAEEA /* GetIDViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetIDViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -185,6 +187,7 @@
 			children = (
 				A5FF84C4260F528800AFAEEA /* Main.storyboard */,
 				A5FF84F4260F547D00AFAEEA /* CommitSequenceViewController.swift */,
+				A5FF85FB2612043E00AFAEEA /* GetIDViewController.swift */,
 			);
 			path = Screens;
 			sourceTree = "<group>";
@@ -350,6 +353,7 @@
 				A5FF84BF260F528800AFAEEA /* AppDelegate.swift in Sources */,
 				A5FF84C1260F528800AFAEEA /* SceneDelegate.swift in Sources */,
 				A5FF852D260F763E00AFAEEA /* Date+Extension.swift in Sources */,
+				A5FF85FC2612043E00AFAEEA /* GetIDViewController.swift in Sources */,
 				A5FF8510260F5CDF00AFAEEA /* ContributeData.swift in Sources */,
 				A5FF854C26109AC700AFAEEA /* UIView+Extension.swift in Sources */,
 				A5FF8524260F5DEE00AFAEEA /* Constants.swift in Sources */,

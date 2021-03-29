@@ -13,6 +13,7 @@ class CommitSequenceViewController: UIViewController {
     @IBOutlet var containerView: UIView!
     @IBOutlet weak var tableView: UITableView!
     @IBOutlet weak var screenshotButton: UIButton!
+    @IBOutlet weak var shareButton: UIButton!
     
     let commitStatusCellIdentifier = "commitStatusCell"
     
@@ -22,13 +23,26 @@ class CommitSequenceViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        fetchContributionsByUserame(by: "KimMiha")
-
         configureTableView()
-        
+        screenshotButton.layer.cornerRadius = 10
+        shareButton.layer.cornerRadius = 10
     }
     
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(true)
+        showGetIDView()
+    }
     
+    private func showGetIDView() {
+        let userId = UserDefaults.standard.value(forKey: "GithubKey")
+        
+        if userId != nil {
+            fetchContributionsByUserame(by: userId as! String)
+        } else {
+            let pushVC = self.storyboard?.instantiateViewController(identifier: "GetIDViewController")
+            self.navigationController?.pushViewController(pushVC!, animated: true)
+        }
+    }
     
     private func configureTitle() {
 
@@ -69,23 +83,29 @@ class CommitSequenceViewController: UIViewController {
         UIImageWriteToSavedPhotosAlbum(screenshot, self, #selector(imageWasSaved), nil)
     }
     
-    @IBAction func captureButtonClick(_ sender: Any) {
-        
-        UIView.animate(withDuration: 0.2, animations: {
-                 self.screenshotButton.backgroundColor = .blue
-             }) { _ in
-            self.screenshotButton.backgroundColor = .systemGreen
-             }
-
-             takeScreenshot(of: containerView)
-        
+    @IBAction func didTapCaptureButtonClicked(_ sender: Any) {
+        takeScreenshot(of: containerView)
     }
     
+    @IBAction func didTapShareButtonClicked(_ sender: Any) {
+        UIGraphicsBeginImageContext(self.view.bounds.size)
+        self.view.drawHierarchy(in: view.bounds, afterScreenUpdates: false)
+        let image = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        
+        var imagesToShare = [UIImage]()
+        imagesToShare.append(image!)
+
+        let activityViewController = UIActivityViewController(activityItems: imagesToShare , applicationActivities: nil)
+        activityViewController.popoverPresentationController?.sourceView = self.view
+        present(activityViewController, animated: true, completion: nil)
+    }
     
     
     private func configureTableView() {
         tableView.delegate = self
         tableView.dataSource = self
+        tableView.allowsSelection = false
     }
     
     func fetchContributionsByUserame(by username: String) {
@@ -215,6 +235,11 @@ extension CommitSequenceViewController: UITableViewDelegate, UITableViewDataSour
         let count = self.myContributes[indexPath.row].count
         let emoji = count.getEmoji()
         cell.textLabel?.text = "\(date) (\(weekend)) - \(emoji) \(count)"
+        if count > 0 {
+            cell.textLabel?.textColor = .systemGreen
+        } else {
+            cell.textLabel?.textColor = .systemRed
+        }
         return cell
     }
     
