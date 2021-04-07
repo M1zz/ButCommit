@@ -7,113 +7,81 @@
 
 import Foundation
 
+protocol MyURLSessionDataDelegate: class {
+    func myUrlSession(_ session: URLSession, didReceive data: Data)
+    
+    func myUrlSession(_ session: URLSession, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void)
+    
+    func myUrlSession(_ session: URLSession, didCompleteWithError error: Error?)
+}
 
-//class NetworkManager {
-//    static let shared = NetworkManager()
-//    private var myContributes: [ContributeData] = []
-//    private var mystreaks: ContributeData = ContributeData(count: 0, weekend: "", date: "")
-//    
-//    private init() {}
-//    
-//    func getContributionsByUserame(by username: String) {
-//        guard let targetURL = URL(string: "https://github.com/users/\(username)/contributions") else { return }
-//        
-//        URLSession.shared.dataTask(with: targetURL) { [weak self] data, response, error in
-//            guard let self = self else { return }
-//
-//            if error != nil {
-//                //self.showError()
-//                return
-//            }
-//
-//            guard let httpResponse = response as? HTTPURLResponse, (200 ... 299).contains(httpResponse.statusCode) else {
-//                //self.showError()
-//                return
-//            }
-//
-//            guard let mimeType = httpResponse.mimeType,
-//                  mimeType == "text/html",
-//                  let data = data,
-//                  let html = String(data: data, encoding: .utf8)
-//            else {
-//                //self.showError()
-//                return
-//            }
-//            //print("data : \(html)")
-//            
-//            let contributeDataList = self.parseHtmltoData(html: html)
-//            self.myContributes = contributeDataList
-//            self.mystreaks = self.parseHtmltoDataForCount(html: html)
-////            if isFriend {
-////                self.friendContributes = contributeDataList
-////            } else{
-////                self.myContributes = contributeDataList
-////                self.mystreaks = self.parseHtmltoDataForCount(html: html)
-////            }
-////https://github.com/scinfu/SwiftSoup.git
-////            if group != nil {
-////                group?.leave()
-////            }
-//            
-//        }
-//        .resume()
-//    }
-//    
-//    private func parseHtmltoDataForCount(html: String) -> ContributeData {
-//        do {
-//            let doc: Document = try SwiftSoup.parse(html)
-//            let rects: Elements = try doc.getElementsByTag(ParseKeys.rect)
-//            let days: [Element] = rects.array().filter { $0.hasAttr(ParseKeys.date) }
-//            let count = days.suffix(Consts.fetchStreak)
-//            var contributeLastDate = count.map(mapFunction)
-//            
-//            contributeLastDate.sort{ $0.date > $1.date }
-//            for index in 0 ..< contributeLastDate.count {
-//                if contributeLastDate[index].count == .zero {
-//                    return contributeLastDate[index]
+class MyNetworkManager {
+    weak var delegate: MyURLSessionDataDelegate!
+    
+    init(delegate: MyURLSessionDataDelegate) {
+        self.delegate = delegate
+    }
+    
+    func dataTask(with url: URL, session: URLSession) {
+        URLSession.shared.dataTask(with: url) { (data, response, error) in
+            //print("completed data : \(String(data: data!, encoding: .utf8))")
+            guard let data = data else { return }
+            var myData = data
+            let dataLength = myData.count
+            let chunkSize = ((1024 * 1) * 4)
+            let fullChunks = Int(dataLength / chunkSize)
+            let totalChunks = fullChunks + (dataLength % 1024 != 0 ? 1 : 0)
+            
+            var chunks:[Data] = [Data]()
+//            for chunkCounter in 0..<totalChunks {
+//                var chunk:Data
+//                let chunkBase = chunkCounter * chunkSize
+//                var diff = chunkSize
+//                if(chunkCounter == totalChunks - 1) {
+//                    diff = dataLength - chunkBase
 //                }
-//                if index == (contributeLastDate.count - 1) {
-//                    return ContributeData(
-//                        count: 1000,
-//                        weekend: contributeLastDate[index].weekend,
-//                        date: contributeLastDate[index].date
-//                    )
-//                }
+//
+//                let range:Range<Data.Index> = Range(chunkBase..<(chunkBase + diff))
+//                chunk = data.subdata(in: range)
+//                print("The size if \(chunk.count)")
 //            }
-//            return ContributeData(count: 0, weekend: "", date: "")
-//        } catch {
-//            return ContributeData(count: 0, weekend: "", date: "")
-//        }
-//    }
-//    
-//    private func parseHtmltoData(html: String) -> [ContributeData] {
-//        do {
-//            let doc: Document = try SwiftSoup.parse(html)
-//            let rects: Elements = try doc.getElementsByTag(ParseKeys.rect)
-//            let days: [Element] = rects.array().filter { $0.hasAttr(ParseKeys.date) }
-//            let weekend = days.suffix(Consts.fetchCount)
-//            let contributeDataList = weekend.map(mapFunction)
-//            return contributeDataList
-//            
-//        } catch {
-//            return []
-//        }
-//    }
-//    
-//    private func mapFunction(ele : Element) -> ContributeData {
-//        guard let attr = ele.getAttributes() else { return ContributeData(count: 0, weekend: "", date: "") }
-//        let date: String = attr.get(key: ParseKeys.date)
-//
-//        let dateFormatter = DateFormatter()
-//        dateFormatter.dateFormat = "yyyy-MM-dd"
-//        dateFormatter.locale = Locale.current
-//        dateFormatter.timeZone = TimeZone.current
-//
-//        let dateForWeekend = dateFormatter.date(from: date)
-//        
-//        guard let weekend = dateForWeekend?.dayOfWeek() else { return ContributeData(count: 0, weekend: "", date: "")}
-//        guard let count = Int(attr.get(key: ParseKeys.contributionCount)) else { return ContributeData(count: 0, weekend: "", date: "")}
-//
-//        return ContributeData(count: count, weekend: weekend, date: date)
-//    }
-//}
+            print(myData.count, myData.count/4096)
+            
+            while(myData.count > chunkSize) {
+                let startIndex = myData.index(myData.startIndex, offsetBy: 0)
+                let lastIndex = myData.index(myData.startIndex, offsetBy: 4096)
+                let endIndex = myData.index(myData.endIndex, offsetBy: 0)
+                let sendData = myData[startIndex...lastIndex]
+                //let sendData = myData[0...lastIndex]
+                self.delegate.myUrlSession(session, didReceive: sendData)
+                var temp = myData.subdata(in: lastIndex-1 ..< endIndex)
+                //myData = myData[4096..<myData.endIndex]
+                
+                if myData.count < 4096 {
+                    self.delegate.myUrlSession(session, didReceive: myData)
+                }
+
+                print(myData.startIndex, myData.endIndex)
+            }
+            
+            
+            self.delegate.myUrlSession(session, didReceive: response!) { (reseponseDiposition) in
+                
+                switch reseponseDiposition {
+                case .allow:
+                print("allow")
+                    self.delegate.myUrlSession(session, didCompleteWithError: error)
+                case .becomeDownload:
+                print("becomeDownload")
+                case .becomeStream:
+                print("becomeStream")
+                case .cancel:
+                print("cancel")
+                }
+            }
+        }.resume()
+        
+//        delegate.myUrlSession(<#T##session: URLSession##URLSession#>, task: <#T##URLSessionTask#>, didCompleteWithError: <#T##Error?#>)
+//        delegate.myUrlSession(<#T##session: URLSession##URLSession#>, dataTask: <#T##URLSessionDataTask#>, didReceive: <#T##URLResponse#>, completionHandler: <#T##(URLSession.ResponseDisposition) -> Void#>)
+    }
+}

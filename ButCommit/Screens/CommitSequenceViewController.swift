@@ -16,11 +16,19 @@ class CommitSequenceViewController: UIViewController {
     @IBOutlet weak var shareButton: UIButton!
     
     let commitStatusCellIdentifier = "commitStatusCell"
+    private lazy var session: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.waitsForConnectivity = true
+        return URLSession(configuration: configuration,
+                          delegate: self, delegateQueue: nil)
+    }()
     
     private var myContributes: [ContributeData] = []
     private var serialCommitCount: Int = 0
     private var mystreaks: ContributeData = ContributeData(count: 0, weekend: "", date: "")
 
+    var receiveData: Data?
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         configureTableView()
@@ -110,53 +118,12 @@ class CommitSequenceViewController: UIViewController {
     
     func fetchContributionsByUserame(by username: String) {
         guard let targetURL = URL(string: "https://github.com/users/\(username)/contributions") else { return }
-        
-        URLSession.shared.dataTask(with: targetURL) { [weak self] data, response, error in
-            guard let self = self else { return }
-
-            if error != nil {
-                //self.showError()
-                return
-            }
-
-            guard let httpResponse = response as? HTTPURLResponse, (200 ... 299).contains(httpResponse.statusCode) else {
-                //self.showError()
-                return
-            }
-
-            guard let mimeType = httpResponse.mimeType,
-                  mimeType == "text/html",
-                  let data = data,
-                  let html = String(data: data, encoding: .utf8)
-            else {
-                //self.showError()
-                return
-            }
-            self.mystreaks = self.parseHtmltoDataForCount(html: html)
-            self.myContributes = self.parseHtmltoData(html: html)
-            
-            DispatchQueue.main.async {
-//                if self.mystreaks[0].count == 0 {
-//                    self.title = "😢 아직 잔디를 심지 못했어요."
-//                } else {
-//
-//                }
-                self.configureTitle()
-                self.tableView.reloadData()
-            }
-//            if isFriend {
-//                self.friendContributes = contributeDataList
-//            } else{
-//                self.myContributes = contributeDataList
-//                self.mystreaks = self.parseHtmltoDataForCount(html: html)
-//            }
-//
-//            if group != nil {
-//                group?.leave()
-//            }
-            
-        }
-        .resume()
+        receiveData = Data()
+        let myNetworkManager = MyNetworkManager(delegate: self)
+        myNetworkManager.dataTask(with: targetURL, session: session)
+//        URLSession.shared.dataTask(with: targetURL, completionHandler: <#T##(Data?, URLResponse?, Error?) -> Void#>)
+//        let task = session.dataTask(with: targetURL)
+//        task.resume()
     }
     
     private func parseHtmltoDataForCount(html: String) -> ContributeData {
@@ -243,5 +210,60 @@ extension CommitSequenceViewController: UITableViewDelegate, UITableViewDataSour
         return cell
     }
     
+}
+
+extension CommitSequenceViewController: URLSessionDataDelegate {
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        self.receiveData?.append(data)
+        print(data)
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        guard let response = response as? HTTPURLResponse,
+                (200...299).contains(response.statusCode),
+                let mimeType = response.mimeType,
+                mimeType == "text/html" else {
+                completionHandler(.cancel)
+                return
+            }
+        completionHandler(.allow)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        let data = String(data: receiveData!, encoding: .utf8)
+        print(data)
+    }
+}
+
+extension CommitSequenceViewController: MyURLSessionDataDelegate {
+    func myUrlSession(_ session: URLSession, didReceive data: Data) {
+        self.receiveData?.append(data)
+        print("received data : \(String(data: data, encoding: .utf8))")
+    }
     
+    func myUrlSession(_ session: URLSession, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        guard let response = response as? HTTPURLResponse,
+                (200...299).contains(response.statusCode),
+                let mimeType = response.mimeType,
+                mimeType == "text/html" else {
+                completionHandler(.cancel)
+                return
+            }
+            completionHandler(.allow)
+    }
+    
+    func myUrlSession(_ session: URLSession, didCompleteWithError error: Error?) {
+        guard let data = receiveData,
+              let html = String(data: data, encoding: .utf8)
+        else { return }
+        print("mydata : \(String(data: data, encoding: .utf8))")
+        print(data.count, receiveData?.count)
+        self.mystreaks = self.parseHtmltoDataForCount(html: html)
+        self.myContributes = self.parseHtmltoData(html: html)
+        
+        DispatchQueue.main.async {
+            self.configureTitle()
+            self.tableView.reloadData()
+        }
+    }
 }
