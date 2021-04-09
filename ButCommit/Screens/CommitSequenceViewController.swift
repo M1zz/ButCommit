@@ -7,6 +7,7 @@
 
 import UIKit
 import SwiftSoup
+import NotificationCenter
 
 class CommitSequenceViewController: UIViewController {
     
@@ -16,12 +17,12 @@ class CommitSequenceViewController: UIViewController {
     @IBOutlet weak var shareButton: UIButton!
     
     let commitStatusCellIdentifier = "commitStatusCell"
-    private lazy var session: URLSession = {
-        let configuration = URLSessionConfiguration.default
-        configuration.waitsForConnectivity = true
-        return URLSession(configuration: configuration,
-                          delegate: self, delegateQueue: nil)
-    }()
+//    private lazy var session: URLSession = {
+//        let configuration = URLSessionConfiguration.default
+//        configuration.waitsForConnectivity = true
+//        return URLSession(configuration: configuration,
+//                          delegate: self, delegateQueue: nil)
+//    }()
     
     private var myContributes: [ContributeData] = []
     private var serialCommitCount: Int = 0
@@ -34,7 +35,92 @@ class CommitSequenceViewController: UIViewController {
         configureTableView()
         screenshotButton.layer.cornerRadius = 10
         shareButton.layer.cornerRadius = 10
+        NotificationCenter.default.addObserver(self, selector: #selector(myUrlSessionDidReceive(_:)), name: Notification.Name("Receive"), object: nil)
+      
     }
+    
+    @objc private func myUrlSessionDidReceive(_ notification: Notification) {
+
+        guard let userInfo = notification.userInfo as? [String: Any] else {return}
+        guard let key = userInfo.keys.first else { return }
+
+        switch key {
+        case "isData" :
+            if notification.userInfo?[key] as! Bool {
+                let data = notification.object as! Data
+
+                self.receiveData?.append(data)
+                print("Receive data! \(data.count)")
+            }
+        case "reseponseResult":
+            if notification.userInfo?[key] as! Bool {
+                guard let data = notification.object as? Data else { return }
+                let myData = data
+                let dataLength = myData.count
+                let chunkSize = ((1024 * 1) * 4)
+                let fullChunks = Int(dataLength / chunkSize)
+                let totalChunks = fullChunks + (dataLength % 1024 != 0 ? 1 : 0)
+
+                var chunks:[Data] = [Data]()
+                for chunkCounter in 0..<totalChunks {
+                    var chunk:Data
+                    let chunkBase = chunkCounter * chunkSize
+                    var diff = chunkSize
+                    if(chunkCounter == totalChunks - 1) {
+                        diff = dataLength - chunkBase
+                    }
+
+                    let range:Range<Data.Index> = chunkBase..<(chunkBase + diff)
+                    chunk = data.subdata(in: range)
+                    print("The size if \(chunk.count)")
+                    NotificationCenter.default.post(name: Notification.Name("Receive"), object: chunk, userInfo: ["isData": true])
+                }
+                NotificationCenter.default.post(name: Notification.Name("Receive"), object: self.receiveData, userInfo: ["result":"success"])
+            }
+        //print(myData.count, myData.count/4096)
+        case "result":
+            if notification.userInfo?[key] as? String == "success" {
+                guard let data = receiveData,
+                      let html = String(data: data, encoding: .utf8)
+                else { return }
+                print("mydata : \(String(data: data, encoding: .utf8))")
+                print(data.count, receiveData?.count)
+                self.mystreaks = parseHtmltoDataForCount(html: html)
+                self.myContributes = parseHtmltoData(html: html)
+
+                DispatchQueue.main.async {
+                    self.configureTitle()
+                    self.tableView.reloadData()
+                }
+
+            } else {
+                print("error")
+            }
+
+        default:
+            print("implement need")
+        }
+
+    }
+    
+    //    @objc private func myUrlSessionDidCompleteWithError(_ notification: Notification) {
+    //        let isSuccess = notification.object as! Bool
+    //        if isSuccess {
+//            guard let data = receiveData,
+//                  let html = String(data: data, encoding: .utf8)
+//            else { return }
+//            print("mydata : \(String(data: data, encoding: .utf8))")
+//            print(data.count, receiveData?.count)
+//            self.mystreaks = self.parseHtmltoDataForCount(html: html)
+//            self.myContributes = self.parseHtmltoData(html: html)
+//
+//            DispatchQueue.main.async {
+//                self.configureTitle()
+//                self.tableView.reloadData()
+//            }
+//        }
+//    }
+    
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(true)
@@ -119,8 +205,8 @@ class CommitSequenceViewController: UIViewController {
     func fetchContributionsByUserame(by username: String) {
         guard let targetURL = URL(string: "https://github.com/users/\(username)/contributions") else { return }
         receiveData = Data()
-        let myNetworkManager = MyNetworkManager(delegate: self)
-        myNetworkManager.dataTask(with: targetURL, session: session)
+        let myNetworkManager = MyNetworkManager()
+        myNetworkManager.dataTask(with: targetURL)
 //        URLSession.shared.dataTask(with: targetURL, completionHandler: <#T##(Data?, URLResponse?, Error?) -> Void#>)
 //        let task = session.dataTask(with: targetURL)
 //        task.resume()
@@ -235,35 +321,35 @@ extension CommitSequenceViewController: URLSessionDataDelegate {
     }
 }
 
-extension CommitSequenceViewController: MyURLSessionDataDelegate {
-    func myUrlSession(_ session: URLSession, didReceive data: Data) {
-        self.receiveData?.append(data)
-        print("received data : \(String(data: data, encoding: .utf8))")
-    }
-    
-    func myUrlSession(_ session: URLSession, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-        guard let response = response as? HTTPURLResponse,
-                (200...299).contains(response.statusCode),
-                let mimeType = response.mimeType,
-                mimeType == "text/html" else {
-                completionHandler(.cancel)
-                return
-            }
-            completionHandler(.allow)
-    }
-    
-    func myUrlSession(_ session: URLSession, didCompleteWithError error: Error?) {
-        guard let data = receiveData,
-              let html = String(data: data, encoding: .utf8)
-        else { return }
-        print("mydata : \(String(data: data, encoding: .utf8))")
-        print(data.count, receiveData?.count)
-        self.mystreaks = self.parseHtmltoDataForCount(html: html)
-        self.myContributes = self.parseHtmltoData(html: html)
-        
-        DispatchQueue.main.async {
-            self.configureTitle()
-            self.tableView.reloadData()
-        }
-    }
-}
+//extension CommitSequenceViewController: MyURLSessionDataDelegate {
+//    func myUrlSession(_ session: URLSession, didReceive data: Data) {
+//        self.receiveData?.append(data)
+//        print("received data : \(String(data: data, encoding: .utf8))")
+//    }
+//
+//    func myUrlSession(_ session: URLSession, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+//        guard let response = response as? HTTPURLResponse,
+//              (200...299).contains(response.statusCode),
+//              let mimeType = response.mimeType,
+//              mimeType == "text/html" else {
+//            completionHandler(.cancel)
+//            return
+//        }
+//        completionHandler(.allow)
+//    }
+//
+//    func myUrlSession(_ session: URLSession, didCompleteWithError error: Error?) {
+//        guard let data = receiveData,
+//              let html = String(data: data, encoding: .utf8)
+//        else { return }
+//        print("mydata : \(String(data: data, encoding: .utf8))")
+//        print(data.count, receiveData?.count)
+//        self.mystreaks = self.parseHtmltoDataForCount(html: html)
+//        self.myContributes = self.parseHtmltoData(html: html)
+//
+//        DispatchQueue.main.async {
+//            self.configureTitle()
+//            self.tableView.reloadData()
+//        }
+//    }
+//}

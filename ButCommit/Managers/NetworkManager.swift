@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import NotificationCenter
 
 protocol MyURLSessionDataDelegate: class {
     func myUrlSession(_ session: URLSession, didReceive data: Data)
@@ -17,68 +18,66 @@ protocol MyURLSessionDataDelegate: class {
 
 class MyNetworkManager {
     weak var delegate: MyURLSessionDataDelegate!
+    private var isSuccuess: Bool = false
     
-    init(delegate: MyURLSessionDataDelegate) {
-        self.delegate = delegate
-    }
+//    init(delegate: MyURLSessionDataDelegate) {
+//        self.delegate = delegate
+//    }
     
-    func dataTask(with url: URL, session: URLSession) {
+    func dataTask(with url: URL) {
         URLSession.shared.dataTask(with: url) { (data, response, error) in
             //print("completed data : \(String(data: data!, encoding: .utf8))")
-            guard let data = data else { return }
-            var myData = data
-            let dataLength = myData.count
-            let chunkSize = ((1024 * 1) * 4)
-            let fullChunks = Int(dataLength / chunkSize)
-            let totalChunks = fullChunks + (dataLength % 1024 != 0 ? 1 : 0)
+            guard let response = response as? HTTPURLResponse,
+                  (200...299).contains(response.statusCode),
+                  let mimeType = response.mimeType,
+                  mimeType == "text/html" else {
+                NotificationCenter.default.post(name: Notification.Name("Receive"),
+                                                object: nil,
+                                                userInfo: ["reseponseResult":self.isSuccuess])
+                return
+            }
             
-            var chunks:[Data] = [Data]()
-//            for chunkCounter in 0..<totalChunks {
-//                var chunk:Data
-//                let chunkBase = chunkCounter * chunkSize
-//                var diff = chunkSize
-//                if(chunkCounter == totalChunks - 1) {
-//                    diff = dataLength - chunkBase
+            self.isSuccuess = true
+            NotificationCenter.default.post(name: Notification.Name("Receive"), object: data, userInfo: ["reseponseResult":self.isSuccuess])
+            
+            
+            
+            
+            
+//            while(myData.count > chunkSize) {
+//                let startIndex = myData.index(myData.startIndex, offsetBy: 0)
+//                let lastIndex = myData.index(myData.startIndex, offsetBy: 4096)
+//                let endIndex = myData.index(myData.endIndex, offsetBy: 0)
+//                let sendData = myData[startIndex...lastIndex]
+//                //let sendData = myData[0...lastIndex]
+//                //self.delegate.myUrlSession(session, didReceive: sendData)
+//                NotificationCenter.default.post(name: Notification.Name("ReceiveData"), object: nil, userInfo: nil)
+//                var temp = myData.subdata(in: lastIndex-1 ..< endIndex)
+//                //myData = myData[4096..<myData.endIndex]
+//
+//                if myData.count < 4096 {
+//                    NotificationCenter.default.post(name: Notification.Name("ReceiveData"), object: nil, userInfo: nil)
+//                    //self.delegate.myUrlSession(session, didReceive: myData)
 //                }
 //
-//                let range:Range<Data.Index> = Range(chunkBase..<(chunkBase + diff))
-//                chunk = data.subdata(in: range)
-//                print("The size if \(chunk.count)")
+//                print(myData.startIndex, myData.endIndex)
 //            }
-            print(myData.count, myData.count/4096)
-            
-            while(myData.count > chunkSize) {
-                let startIndex = myData.index(myData.startIndex, offsetBy: 0)
-                let lastIndex = myData.index(myData.startIndex, offsetBy: 4096)
-                let endIndex = myData.index(myData.endIndex, offsetBy: 0)
-                let sendData = myData[startIndex...lastIndex]
-                //let sendData = myData[0...lastIndex]
-                self.delegate.myUrlSession(session, didReceive: sendData)
-                var temp = myData.subdata(in: lastIndex-1 ..< endIndex)
-                //myData = myData[4096..<myData.endIndex]
-                
-                if myData.count < 4096 {
-                    self.delegate.myUrlSession(session, didReceive: myData)
-                }
-
-                print(myData.startIndex, myData.endIndex)
-            }
             
             
-            self.delegate.myUrlSession(session, didReceive: response!) { (reseponseDiposition) in
-                
-                switch reseponseDiposition {
-                case .allow:
-                print("allow")
-                    self.delegate.myUrlSession(session, didCompleteWithError: error)
-                case .becomeDownload:
-                print("becomeDownload")
-                case .becomeStream:
-                print("becomeStream")
-                case .cancel:
-                print("cancel")
-                }
-            }
+//            self.delegate.myUrlSession(session, didReceive: response!) { (reseponseDiposition) in
+//                
+//                switch reseponseDiposition {
+//                case .allow:
+//                print("allow")
+//                    self.delegate.myUrlSession(session, didCompleteWithError: error)
+//                case .becomeDownload:
+//                print("becomeDownload")
+//                case .becomeStream:
+//                print("becomeStream")
+//                case .cancel:
+//                print("cancel")
+//                }
+//            }
         }.resume()
         
 //        delegate.myUrlSession(<#T##session: URLSession##URLSession#>, task: <#T##URLSessionTask#>, didCompleteWithError: <#T##Error?#>)
